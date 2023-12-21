@@ -1,0 +1,129 @@
+############## Trivariate map ############
+
+library(tricolore)
+library(ggtern)
+##### prepare data ####
+#TEMPORAL BIAS
+require(TPD)
+require(tidyverse)
+library(vegan)
+library(viridis)
+library(ggplot2)
+library(rnaturalearth)
+library(sf)
+library(raster)
+
+d <- readRDS("d.rds")
+
+###### Temporal bias ####
+
+dTB <- readRDS("dTB.rds")
+
+###### Taxonomic bias ####
+
+est <- read.csv("Estimators.CSV", header=T, sep=";")
+est$Latitude <- gsub(est$Latitude,pattern = ',',replacement = '.')
+est$Longitude <- gsub(est$Longitude,pattern = ',',replacement = '.')
+est$Completeness <- gsub(est$Completeness,pattern = ',',replacement = '.')
+
+comp <- est %>% dplyr::select(Longitude, Latitude, Completeness) %>% drop_na() 
+comp$Longitude <-as.numeric(comp[,1])
+comp$Latitude <-as.numeric(comp[,2])
+comp$Completeness <-as.numeric(comp[,3])
+
+r <- rast(resolution=0.5)
+values(r) <- 1:ncell(r)
+
+df.r <- as.data.frame(r, xy=TRUE)
+colnames(df.r)<- c("x","y","id")
+
+comp <- comp %>% 
+  st_as_sf(coords = c("Longitude", "Latitude"), crs = st_crs("+proj=longlat +datum=WGS84")) %>%
+  st_transform(crs = st_crs("+proj=longlat +datum=WGS84"))
+
+
+v <- vect(comp)
+compr <- rasterize(comp, r, field="Completeness", fun=mean)
+
+
+#### NNI 
+NNI.NNI_SES <- readRDS("NNI.NNI_SES.rds")
+NNI <- NNI.NNI_SES %>% dplyr::select(id, nni) %>% unique() %>% drop_na()
+cells <- NNI$id
+ctr <- as.data.frame(xyFromCell(r, cells))
+
+ctr <- ctr %>% 
+  st_as_sf(coords = c("x", "y"), crs = st_crs("+proj=longlat +datum=WGS84")) %>%
+  st_transform(crs = st_crs("+proj=longlat +datum=WGS84"))
+
+
+Vcompr <- extract(compr, ctr)
+
+NNI_COMP <- cbind(NNI, Completeness=Vcompr$mean) %>% 
+  drop_na() %>% 
+  dplyr::select(id, nni, Completeness)
+
+NNI_COMP_EV <- NNI_COMP %>% inner_join(., dTB, by="id")%>% dplyr::select(id, nni, Completeness, J) %>% inner_join(., df.r, by="id")
+####### to scale all to the same range ###
+# z-values
+NNI_COMP_EV_standardized <- NNI_COMP_EV %>% 
+  mutate(across(c("nni", "Completeness","J") , scale)) %>% 
+  mutate(across(c("nni", "Completeness", "J"), function(x) (x - min(x)) / (max(x) - min(x))))
+
+colnames(NNI_COMP_EV_standardized) <- c("id","nni","comp","J","x","y")
+######
+
+NNI_COMP_EV_standardized <- NNI_COMP_EV_standardized %>% 
+  st_as_sf(coords = c("x", "y"), crs = st_crs("+proj=longlat +datum=WGS84")) %>%
+  st_transform(crs = st_crs("+proj=longlat +datum=WGS84"))
+
+
+v <- vect(NNI_COMP_EV_standardized)
+NNI_COMP_EVsr <- rasterize(v, r, field=c("nni","comp","J"))
+
+
+
+NNI_COMP_EVssp <- as.polygons(NNI_COMP_EVsr, dissolve=FALSE)
+
+NNI_COMP_EVssf <- NNI_COMP_EVssp %>% st_as_sf ()
+tric <- Tricolore(NNI_COMP_EVssf, p1 = 'nni_last', p2 = 'comp_last', p3 = 'J_last',
+                  contrast = 0.5, hue= 1)
+NNI_COMP_EVssf$rgb <- tric$rgb
+
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+NNI_COMP_EVssf %>% 
+  ggplot()+
+  geom_sf(data=world,
+          colour = "black", fill = "lightgray")+
+  geom_sf(aes(fill = factor(rgb)), color= "transparent")+
+  scale_fill_identity()+
+  coord_sf(xlim = c(-13, 42), ylim = c(36, 71), expand = TRUE)+
+  labs(title = "NNI vs Completeness vs Evennesss", x="Longitude", y="Latitude", fill = "Accuracy") +theme_light()+
+  theme(legend.background=element_blank(),
+        panel.grid = element_blank(),
+        legend.position = 'bottom',
+        plot.title = element_text(size=12,face = 'bold',hjust = 0.5),
+        legend.title=element_text(size=12,face = 'bold'),
+        axis.title.x = element_text(size=12,face = 'bold'),
+        axis.text.x = element_text(size = 10, face = 'bold'),
+        axis.title.y = element_text(size=12,face = 'bold'),
+        axis.text.y = element_text(size = 10, face = 'bold'),
+        axis.ticks.y=element_blank(),
+        text = element_text(size=12), 
+        strip.text = element_text(size=12),
+        legend.text = element_text(size=12,angle = 0), 
+        legend.key.size = unit(0.8, 'cm'))   -> TRI
+
+#p <- TRI +
+#annotation_custom(
+#ggplotGrob(tric$key),  xmin = -10, xmax = 20, ymin = 60, ymax )
+
+#p <- grid.arrange(arrangeGrob(TRI, ncol=1, nrow=1),
+#arrangeGrob(tric$key, ncol=2, nrow=1), heights=c(2,1))
+
+ggplot2::ggsave(TRI, filename= "TRI.png", width = 18, height = 7, dpi= 600)
+
+legend <- tric$key
+
+ggplot2::ggsave(legend, filename= "legend.png", width = 18, height = 7, dpi=600)
