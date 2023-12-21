@@ -1,0 +1,47 @@
+library(sf)
+library(terra)
+library(dplyr)
+library(tidyverse)
+
+# Load data
+load("3474_76_sPlotOpen.RData")
+
+# Replace spaces with underscores in Species column
+DT2.oa$Species <- gsub(DT2.oa$Species, pattern = ' ', replacement = '_')
+
+# Separate data into species and non-species levels
+species_level <- DT2.oa[grepl("_", DT2.oa$Species),]
+NOspecies_level <- DT2.oa[!grepl("_", DT2.oa$Species),]
+
+# Merge data
+d <- merge(species_level, header.oa, by = 'PlotObservationID')
+
+# Filter for Europe, Year >= 1992, and Location uncertainty < 250
+d <- d[d$Continent == 'Europe' & d$Location_uncertainty < 250,]
+d$Year <- substr(d$Date_of_recording, 1, 4)
+d <- d[d$Year >= 1992,]
+
+r <- rast(resolution=0.5)
+values(r) <- 1:ncell(r)
+r <- as.polygons(r)
+r.sf <- st_as_sf(r)
+st_crs(r.sf) <- st_crs("+proj=longlat +datum=WGS84")
+r.sf <- st_transform(r.sf, crs = st_crs(r.sf))
+r.sf <- st_make_valid(r.sf) 
+
+dCoord <- d %>% dplyr::select(Longitude, Latitude, PlotObservationID)%>%
+          unique()%>%
+          drop_na() %>%
+          st_as_sf(coords = c("Longitude", "Latitude"), crs = st_crs("+proj=longlat +datum=WGS84")) %>%
+          st_transform(crs = st_crs("+proj=longlat +datum=WGS84"))
+
+OV <- st_intersects(dCoord, r.sf)
+OV_l <- unlist(OV) 
+d_id <- d %>% dplyr::select(Longitude, Latitude, PlotObservationID)%>%
+  unique()%>%
+  drop_na() %>%
+  cbind(., id=OV_l) %>%
+  dplyr::select(id, PlotObservationID)
+
+d <- d %>% left_join(., d_id, by="PlotObservationID")
+saveRDS(d, "d.rds")
