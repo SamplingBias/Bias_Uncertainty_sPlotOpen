@@ -1,0 +1,312 @@
+library(tidyverse)
+library(spatstat)
+library(terra)
+library(sf)
+library(ggplot2)
+library(rnaturalearth)
+
+##### spatstat functions #####
+clarkevans <- function(X, correction=c("none", "Donnelly", "cdf"),
+                       clipregion=NULL)
+{
+  verifyclass(X, "ppp")
+  W <- X$window
+  
+  # validate correction argument
+  gavecorrection <- !missing(correction)
+  correction <- pickoption("correction", correction,
+                           c(none="none",
+                             Donnelly="Donnelly",
+                             donnelly="Donnelly",
+                             guard="guard",
+                             cdf="cdf"),
+                           multi=TRUE)
+  
+  if(("Donnelly" %in% correction) && (W$type != "rectangle")) {
+    if(gavecorrection)
+      warning("Donnelly correction only available for rectangular windows")
+    correction <- correction[correction != "Donnelly"]
+  }
+  
+  # guard correction applied iff `clipregion' is present
+  isguard <- "guard" %in% correction
+  askguard <- any(isguard)
+  gaveguard <- !is.null(clipregion)
+  if(gaveguard)
+    clipregion <- as.owin(clipregion)
+  if(askguard && !gaveguard) {
+    warning("guard correction not performed; clipregion not specified")
+    correction <- correction[!isguard]
+  } else if(gaveguard && !askguard) 
+    correction <- c(correction, "guard")
+  
+  result <- clarkevansCalc(X, correction, clipregion)
+  if(length(result) == 1L) result <- unname(result)
+  return(result)
+}
+
+##### clarkevans.test function modified adding SES #####
+clarkevans.test2 <- function (X, ..., correction = "none", 
+                              clipregion = NULL, 
+                              alternative = c("two.sided", "less", "greater", "clustered", "regular"), 
+                              nsim = 999) 
+{
+  require(spatstat.utils)
+  Xname <- short.deparse(substitute(X))
+  miss.nsim <- missing(nsim)
+  verifyclass(X, "ppp")
+  W <- Window(X)
+  areaW <- area.default(W) ##### area of W calculated as axb of owin type "rectangle"
+  nX <- npoints(X)
+  correction <- pickoption("correction", correction, c(none = "none", 
+                                                       Donnelly = "Donnelly", donnelly = "Donnelly", guard = "guard", 
+                                                       cdf = "cdf"))
+  switch(correction, none = {
+    corrblurb <- "No edge correction"
+  }, Donnelly = {
+    if (W$type != "rectangle") stop("Donnelly correction only available for rectangular windows")
+    corrblurb <- "Donnelly correction"
+  }, guard = {
+    if (is.null(clipregion)) stop("clipregion not specified")
+    clipregion <- as.owin(clipregion)
+    corrblurb <- "Guard correction"
+  }, cdf = {
+    corrblurb <- "CDF correction"
+  })
+  if (missing(alternative) || is.null(alternative)) 
+    alternative <- "two.sided"
+  alternative <- pickoption("alternative", alternative, c(two.sided = "two.sided", 
+                                                          less = "less", clustered = "less", greater = "greater", 
+                                                          regular = "greater"))
+  altblurb <- switch(alternative, two.sided = "two-sided", 
+                     less = "clustered (R < 1)", greater = "regular (R > 1)")
+  statistic <- clarkevansCalc(X, correction = correction, clipregion = clipregion, 
+                              working = TRUE)
+  working <- attr(statistic, "working")
+  if (correction == "none" && miss.nsim) {
+    SE <- with(working, sqrt(((4 - pi) * areaW)/(4 * pi))/npts)
+    Z <- with(working, (Dobs - Dpois)/SE)
+    p.value <- switch(alternative, less = pnorm(Z), greater = 1 - 
+                        pnorm(Z), two.sided = 2 * (1 - pnorm(abs(Z))))
+    pvblurb <- "Z-test"
+  }
+  else {
+    sims <- numeric(nsim)
+    for (i in seq_len(nsim)) {
+      Xsim <- runifpoint(nX, win = W)
+      sims[i] <- clarkevansCalc(Xsim, correction = correction, 
+                                clipregion = clipregion)
+    }
+    p.upper <- (1 + sum(sims >= statistic))/(1 + nsim)
+    p.lower <- (1 + sum(sims <= statistic))/(1 + nsim)
+    p.value <- switch(alternative, less = p.lower, greater = p.upper, 
+                      two.sided = min(1, 2 * min(p.lower, p.upper)))
+    pvblurb <- paste("Monte Carlo test based on", nsim, "simulations of CSR with fixed n")
+  }
+  statistic <- as.numeric(statistic)
+  names(statistic) <- "R"
+  statistic.SES <- (statistic - mean(sims, na.rm=TRUE))/sd(sims, na.rm=TRUE) ## na.rm=TRUE to avoid NaN of sims
+  out <- list(statistic = statistic, p.value = p.value, alternative = altblurb, 
+              method = c("Clark-Evans test", corrblurb, pvblurb), data.name = Xname,  
+              sims=sims, 
+              statistic.SES=statistic.SES)
+  class(out) <- "htest"
+  return(out)
+}
+
+clarkevansCalc <- function(X, correction="none", clipregion=NULL,
+                           working=FALSE) {
+  # calculations for Clark-Evans index or test
+  W <- Window(X)
+  areaW <- area.default(W)
+  npts <- npoints(X)
+  intensity <- npts/areaW
+  # R undefined for empty point pattern
+  if(npts == 0)
+    return(NA)
+  # Dobs = observed mean nearest neighbour distance
+  nndistX <- nndist(X)
+  Dobs <- mean(nndistX)
+  # Dpois = Expected mean nearest neighbour distance for Poisson process
+  Dpois <- 1/(2*sqrt(intensity))
+  
+  statistic <- NULL
+  if(working) 
+    work <- list(areaW=areaW, npts=npts, intensity=intensity,
+                 Dobs=Dobs, Dpois=Dpois)
+  
+  # Naive uncorrected value
+  if("none" %in% correction) {
+    Rnaive <- Dobs/Dpois
+    statistic <- c(statistic, naive=Rnaive)
+  }
+  # Donnelly edge correction
+  if("Donnelly" %in% correction) {
+    # Dedge = Edge corrected mean nearest neighbour distance, Donnelly 1978
+    if(W$type == "rectangle") {
+      perim <- perimeter(W)
+      Dkevin  <- Dpois + (0.0514+0.0412/sqrt(npts))*perim/npts
+      Rkevin <- Dobs/Dkevin
+      if(working) work <- append(work, list(perim=perim, Dkevin=Dkevin))
+    } else 
+      Rkevin <- NA
+    statistic <- c(statistic, Donnelly=Rkevin)
+  }
+  # guard area method
+  if("guard" %in% correction && !is.null(clipregion)) {
+    # use nn distances from points inside `clipregion'
+    ok <- inside.owin(X, , clipregion)
+    Dguard <- mean(nndistX[ok])
+    Rguard <- Dguard/Dpois
+    if(working) work <- append(work, list(Dguard=Dguard))
+    statistic <- c(statistic, guard=Rguard)
+  }
+  if("cdf" %in% correction) {
+    # compute mean of estimated nearest-neighbour distance distribution G
+    G <- Gest(X)
+    numer <- stieltjes(function(x){x}, G)$km
+    denom <- stieltjes(function(x){rep.int(1, length(x))}, G)$km
+    Dcdf <- numer/denom
+    Rcdf <- Dcdf/Dpois
+    if(working) work <- append(work, list(Dcdf=Dcdf))
+    statistic <- c(statistic, cdf=Rcdf)
+  }
+  if(working) attr(statistic, "working") <- work
+  
+  return(statistic)
+}
+
+
+
+
+###############################
+
+r <- rast(resolution=0.5)
+values(r) <- 1:ncell(r)
+
+df.r <- as.data.frame(r, xy=TRUE)
+colnames(df.r)<- c("x","y","id")
+
+
+#d <- readRDS("d.rds")
+
+dPlot <- d%>% 
+  dplyr::select(Longitude, Latitude, id)%>%unique()
+
+id <- dPlot %>% dplyr::select(id)%>% drop_na()
+
+dPlot <- d%>% 
+  dplyr::select(Longitude, Latitude, id)%>%unique()%>%
+  drop_na()%>%
+  st_as_sf(coords = c("Longitude", "Latitude"), crs = st_crs("+proj=longlat +datum=WGS84")) %>%
+  st_transform(crs = st_crs("+proj=longlat +datum=WGS84"))
+
+
+
+r <- as.polygons(r)
+r.sf <- st_as_sf(r)
+st_crs(r.sf) <- st_crs("+proj=longlat +datum=WGS84")
+r.sf <- st_transform(r.sf, crs = st_crs(r.sf))
+r.sf <- st_make_valid(r.sf) 
+sp <- st_intersects(r.sf, dPlot)
+res <- purrr::map_depth(sp, 1, ~ifelse(is.null(.x), NA, .x) )
+
+OV_l <- unlist(res)
+
+dPlot_ov <- cbind(r.sf, id=OV_l)%>%drop_na()%>%dplyr::select(lyr.1, geometry)
+bbox_list <- lapply(dPlot_ov$geometry, st_bbox) 
+# Convert the list of bboxes to a data frame
+bbox_df <- data.frame(do.call(rbind, bbox_list)) %>% cbind(id=dPlot_ov$lyr.1)
+
+
+dPlot <- d%>% 
+  dplyr::select(Longitude, Latitude, id)%>%
+  arrange(id)%>%
+  unique()%>% 
+  inner_join(., bbox_df, by="id")%>%
+  dplyr::select(Longitude, Latitude, id)%>%
+  group_by(id)%>% 
+  nest()
+bbox_id <- d%>% 
+  dplyr::select(id)%>%
+  arrange(id)%>%
+  unique()%>% 
+  inner_join(., bbox_df, by="id") %>%
+  group_by(id) %>%
+  filter(n() == 1) %>%
+  ungroup()%>%
+  dplyr::select(xmin,xmax,ymin,ymax)
+
+# Step 2: Prepare the list of ppp objects
+y5 <- list()
+for (i in 1:1123) {
+  ppp_obj <- ppp(dPlot$data[[i]]$Longitude, dPlot$data[[i]]$Latitude, window = owin(c(bbox_id$xmin[i], bbox_id$xmax[i]), c(bbox_id$ymin[i], bbox_id$ymax[i]))
+  )
+  y5[[i]] <- ppp_obj
+}
+
+test <- map(y5, ~ clarkevans.test2(.x, correction="cdf"))
+
+extracted_values.nni <- list()
+for (i in 1:length(test)) {
+  extracted_values.nni[[i]] <- test[[i]][["statistic"]][["R"]]
+}
+combined_values.nni <- unlist(extracted_values.nni)
+
+nni <- combined_values.nni
+
+extracted_values.nniSES <- list()
+for (i in 1:length(test)) {
+  extracted_values.nniSES[[i]] <- test[[i]][["statistic.SES"]][["R"]]
+}
+combined_values.nniSES <- unlist(extracted_values.nniSES)
+
+nni.ses <- combined_values.nniSES
+
+NNI.NNI_SES <- data.frame(nni=nni, nni.ses=nni.ses) %>% 
+  cbind(id=y4$id) %>% 
+  inner_join(., df.r, by="id") %>% 
+  unique() %>% 
+  drop_na() %>% #max(NNI.NNI_SES$nni) [1] 1.315557
+  mutate(range=cut(nni, c(0,1,1.315557), include.lowest=TRUE, labels=FALSE))
+
+saveRDS(NNI.NNI_SES, "NNI.NNI_SES.rds")
+
+
+NNI.NNI_SES <- NNI.NNI_SES %>% 
+  st_as_sf(coords = c("x", "y"), crs = st_crs("+proj=longlat +datum=WGS84")) %>%
+  st_transform(crs = st_crs("+proj=longlat +datum=WGS84"))
+
+
+r <- rast(resolution=0.5)
+values(r) <- 1:ncell(r)
+
+v <- vect(NNI.NNI_SES)
+NNIr <- rasterize(v, r, field="nni")
+
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+NNIr_sp <- as.polygons(NNIr, dissolve=FALSE)
+NNIr_sp %>% 
+  st_as_sf () %>%  
+  ggplot()+
+  geom_sf(aes(fill = factor(range)))+
+  geom_sf(data=world,
+          colour = "black", fill = "transparent")+
+  scale_fill_manual(values = c("#56B4E9","#E69F00"), labels=c("0.0-1.0","> 1"))+
+  coord_sf(xlim = c(-13, 51), ylim = c(36, 71), expand = TRUE)+
+  labs(title = "Average Nearest Neighbor Index", x="Longitude", y="Latitude", fill = "NNI") +theme_light()+
+  theme(legend.background=element_blank(),
+        panel.grid = element_blank(),
+        legend.position = 'bottom',
+        plot.title = element_text(size=17,face = 'bold',hjust = 0.5),
+        legend.title=element_text(size=12,face = 'bold'),
+        axis.title.x = element_text(size=14,face = 'bold'),
+        axis.text.x = element_text(size = 10, face = 'bold'),
+        axis.title.y = element_text(size=14,face = 'bold'),
+        axis.text.y = element_text(size = 10, face = 'bold'),
+        axis.ticks.y=element_blank(),
+        text = element_text(size=12), 
+        strip.text = element_text(size=12),
+        legend.text = element_text(size=12,angle = 0), 
+        legend.key.size = unit(0.8, 'cm'))   ->plot
