@@ -1,0 +1,95 @@
+require(TPD)
+require(tidyverse)
+library(vegan)
+library(viridis)
+library(ggplot2)
+library(rnaturalearth)
+library(sf)
+library(terra)
+
+d <- readRDS("d.rds")
+
+d$Year <- as.numeric(d$Year)
+
+dd <- d %>% dplyr::select(id, PlotObservationID, Year) %>% unique() %>%
+  group_by(id, Year) %>%
+  mutate(nPlotY = n()) %>%
+  ungroup() %>%
+  drop_na()
+
+# create wide temporal data.frame
+
+dd %>% dplyr::select(-PlotObservationID)%>%  
+  unique%>%
+  mutate(Year=as.numeric(Year)) %>% 
+  pivot_wider(names_from = Year,values_from = nPlotY) %>% 
+  dplyr::select(id, order(colnames(.))) %>% 
+  as.data.frame() -> ddWide
+
+ddWide[is.na(ddWide)] <- 0
+
+
+
+
+# calcluate Pielou's evenness
+
+df <- data.frame(S=rowSums(ddWide[,2:24]),
+                 H=diversity(ddWide[,2:24]))
+df$J <- df$H/log(df$S)
+df$id <- ddWide$id 
+dTB <- df %>% drop_na()%>%
+       dplyr::select(id, J)
+saveRDS(dTB, "dTB.rds")
+
+### plot J index ####
+
+
+r <- rast(resolution=0.5)
+values(r) <- 1:ncell(r)
+
+df.r <- as.data.frame(r, xy=TRUE)
+colnames(df.r)<- c("x","y","id")
+
+
+dTB <- dTB %>% inner_join(., df.r, by="id")%>%
+  st_as_sf(coords = c("x", "y"), crs = st_crs("+proj=longlat +datum=WGS84")) %>%
+  st_transform(crs = st_crs("+proj=longlat +datum=WGS84"))
+
+
+v <- vect(dTB)
+dTBr <- rasterize(v, r, field="J")
+
+## spatial polygons of world's countries
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+dTB_sp <- as.polygons(dTBr, dissolve=FALSE)
+dTB_sp %>% 
+  st_as_sf () %>%  
+  ggplot()+
+  geom_sf(aes(fill = last))+
+  geom_sf(data=world,
+          colour = "black", fill = "transparent")+
+  scale_fill_viridis(option='viridis',direction = 1,alpha = 0.7)+
+  coord_sf(xlim = c(-13, 51), ylim = c(36, 71), expand = TRUE)+
+  labs(title = "Pielou's evenness", x="Longitude", y="Latitude", fill = "J Index") +theme_light()+
+  theme(legend.background=element_blank(),
+        panel.grid = element_blank(),
+        legend.position = 'bottom',
+        plot.title = element_text(size=17,face = 'bold',hjust = 0.5),
+        legend.title=element_text(size=12,face = 'bold'),
+        axis.title.x = element_text(size=14,face = 'bold'),
+        axis.text.x = element_text(size = 10, face = 'bold'),
+        axis.title.y = element_text(size=14,face = 'bold'),
+        axis.text.y = element_text(size = 10, face = 'bold'),
+        axis.ticks.y=element_blank(),
+        text = element_text(size=12), 
+        strip.text = element_text(size=12),
+        legend.text = element_text(size=12,angle = 0), 
+        legend.key.size = unit(0.8, 'cm'))   ->plot
+
+
+ggsave(plot = plot,
+       filename = "Pielou.jpg",
+       width = 10,
+       height = 10,
+       dpi = 600)
