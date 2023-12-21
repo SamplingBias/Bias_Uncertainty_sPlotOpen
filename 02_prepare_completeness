@@ -1,0 +1,93 @@
+library(tidyverse)
+library(KnowBR)
+library(sf)
+library(ggplot2)
+library(viridis)
+library(rnaturalearth)
+library(terra)
+
+#### Completeness per grids with incidence data
+
+d <- readRDS("d.rds")
+
+# adding incidence value for each record
+
+d$records <- 1
+
+# community matrix IDplots x species
+dMatrix <- d %>%
+  dplyr::select(Species, PlotObservationID, records)%>%
+  pivot_wider(names_from =Species, values_from = records, id_cols=PlotObservationID, values_fn = list(records = sum), values_fill = 0)%>%
+  mutate(across(where(is.numeric), round, 0)) %>% unique()
+
+#length(unique(d$PlotObservationID))
+#[1] 10501
+#length(unique(d$Species))
+#[1] 5441
+
+# select coordinates for each plot
+
+dPlot <- d %>% dplyr::select(PlotObservationID, Longitude,  Latitude) %>% unique()
+
+# create table format B for KnowBR format B
+dMatrix <- merge(dMatrix, dPlot, by="PlotObservationID") 
+
+
+dMatrix <- dMatrix[,-1]
+dMatrix <- dMatrix[,-1]
+dMatrix <- dMatrix %>% relocate(c( Longitude, Latitude), .before = "Aegopodium_podagraria")
+
+data(adworld)                    
+KnowB(data=dMatrix, save="CSV", format="B", cell=30) # 0.5 degree
+
+######### Estimator is the table that contains the completeness values
+
+est <- read.csv("Estimators.CSV", header=T, sep=";")
+est$Latitude <- gsub(est$Latitude,pattern = ',',replacement = '.')
+est$Longitude <- gsub(est$Longitude,pattern = ',',replacement = '.')
+est$Completeness <- gsub(est$Completeness,pattern = ',',replacement = '.')
+
+comp <- est %>% dplyr::select(Longitude, Latitude, Completeness) %>% drop_na() ### drop_na() solo per plots
+comp$Longitude <-as.numeric(comp[,1])
+comp$Latitude <-as.numeric(comp[,2])
+comp$Completeness <-as.numeric(comp[,3])
+
+r <- rast(resolution=0.5)
+values(r) <- 1:ncell(r)
+
+
+comp <- comp %>% 
+  st_as_sf(coords = c("Longitude", "Latitude"), crs = st_crs("+proj=longlat +datum=WGS84")) %>%
+  st_transform(crs = st_crs("+proj=longlat +datum=WGS84"))
+
+
+v <- vect(comp)
+compr <- rasterize(comp, r, field="Completeness", fun=mean)
+
+
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+compr_sp <- as.polygons(compr, dissolve=FALSE)
+compr_sp %>% 
+  st_as_sf () %>%  
+  ggplot()+
+  geom_sf(aes(fill =mean))+
+  geom_sf(data=world,
+          colour = "black", fill = "transparent")+
+  scale_fill_viridis(option='viridis',direction = 1,alpha = 0.7)+
+  coord_sf(xlim = c(-13, 51), ylim = c(36, 71), expand = TRUE)+
+  labs(title = "Completeness", x="Longitude", y="Latitude", fill = "Completeness") +theme_light()+
+  theme(legend.background=element_blank(),
+        panel.grid = element_blank(),
+        legend.position = 'bottom',
+        plot.title = element_text(size=17,face = 'bold',hjust = 0.5),
+        legend.title=element_text(size=12,face = 'bold'),
+        axis.title.x = element_text(size=14,face = 'bold'),
+        axis.text.x = element_text(size = 10, face = 'bold'),
+        axis.title.y = element_text(size=14,face = 'bold'),
+        axis.text.y = element_text(size = 10, face = 'bold'),
+        axis.ticks.y=element_blank(),
+        text = element_text(size=12), 
+        strip.text = element_text(size=12),
+        legend.text = element_text(size=12,angle = 0), 
+        legend.key.size = unit(0.8, 'cm'))   ->plot
