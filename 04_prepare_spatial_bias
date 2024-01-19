@@ -182,6 +182,9 @@ clarkevansCalc <- function(X, correction="none", clipregion=NULL,
 ###############################
 
 r <- rast(resolution=0.5)
+e <- ext(-16.1,40.18, 32.88, 84.73)
+r<- crop(r, e)
+r <- project(r, "EPSG:3035")
 values(r) <- 1:ncell(r)
 
 df.r <- as.data.frame(r, xy=TRUE)
@@ -191,22 +194,14 @@ colnames(df.r)<- c("x","y","id")
 #d <- readRDS("d.rds")
 
 dPlot <- d%>% 
-  dplyr::select(Longitude, Latitude, id)%>%unique()
+  dplyr::select(X, Y, id)%>%unique() %>%
+         st_as_sf(coords = c("X", "Y"), crs = st_crs(3035))
 
 id <- dPlot %>% dplyr::select(id)%>% drop_na()
-
-dPlot <- d%>% 
-  dplyr::select(Longitude, Latitude, id)%>%unique()%>%
-  drop_na()%>%
-  st_as_sf(coords = c("Longitude", "Latitude"), crs = st_crs("+proj=longlat +datum=WGS84")) %>%
-  st_transform(crs = st_crs("+proj=longlat +datum=WGS84"))
-
 
 
 r <- as.polygons(r)
 r.sf <- st_as_sf(r)
-st_crs(r.sf) <- st_crs("+proj=longlat +datum=WGS84")
-r.sf <- st_transform(r.sf, crs = st_crs(r.sf))
 r.sf <- st_make_valid(r.sf) 
 sp <- st_intersects(r.sf, dPlot)
 res <- purrr::map_depth(sp, 1, ~ifelse(is.null(.x), NA, .x) )
@@ -220,27 +215,20 @@ bbox_df <- data.frame(do.call(rbind, bbox_list)) %>% cbind(id=dPlot_ov$lyr.1)
 
 
 dPlot <- d%>% 
-  dplyr::select(Longitude, Latitude, id)%>%
+  dplyr::select(X, Y, id)%>%
+  unique()%>%
   arrange(id)%>%
-  unique()%>% 
   inner_join(., bbox_df, by="id")%>%
-  dplyr::select(Longitude, Latitude, id)%>%
+  dplyr::select(X, Y, id)%>%
   group_by(id)%>% 
   nest()
-bbox_id <- d%>% 
-  dplyr::select(id)%>%
-  arrange(id)%>%
-  unique()%>% 
-  inner_join(., bbox_df, by="id") %>%
-  group_by(id) %>%
-  filter(n() == 1) %>%
-  ungroup()%>%
+bbox_id <- bbox_df %>%
   dplyr::select(xmin,xmax,ymin,ymax)
 
 # Step 2: Prepare the list of ppp objects
 y5 <- list()
-for (i in 1:1123) {
-  ppp_obj <- ppp(dPlot$data[[i]]$Longitude, dPlot$data[[i]]$Latitude, window = owin(c(bbox_id$xmin[i], bbox_id$xmax[i]), c(bbox_id$ymin[i], bbox_id$ymax[i]))
+for (i in 1:1121) {
+  ppp_obj <- ppp(dPlot$data[[i]]$X, dPlot$data[[i]]$Y, window = owin(c(bbox_id$xmin[i], bbox_id$xmax[i]), c(bbox_id$ymin[i], bbox_id$ymax[i]))
   )
   y5[[i]] <- ppp_obj
 }
@@ -264,37 +252,43 @@ combined_values.nniSES <- unlist(extracted_values.nniSES)
 nni.ses <- combined_values.nniSES
 
 NNI.NNI_SES <- data.frame(nni=nni, nni.ses=nni.ses) %>% 
-  cbind(id=y4$id) %>% 
+  cbind(id=dPlot$id) %>% 
   inner_join(., df.r, by="id") %>% 
   unique() %>% 
-  drop_na() %>% #max(NNI.NNI_SES$nni) [1] 1.315557
-  mutate(range=cut(nni, c(0,1,1.315557), include.lowest=TRUE, labels=FALSE))
+  drop_na() %>% #max(NNI.NNI_SES$nni) [1] 1.439661
+  mutate(range=cut(nni, c(0,1,1.439661), include.lowest=TRUE, labels=FALSE))
 
 saveRDS(NNI.NNI_SES, "NNI.NNI_SES.rds")
 
 
 NNI.NNI_SES <- NNI.NNI_SES %>% 
-  st_as_sf(coords = c("x", "y"), crs = st_crs("+proj=longlat +datum=WGS84")) %>%
-  st_transform(crs = st_crs("+proj=longlat +datum=WGS84"))
+  st_as_sf(coords = c("x", "y"), crs = st_crs(3035)) %>%
+  st_transform(crs = st_crs(3035))
 
 
 r <- rast(resolution=0.5)
+e <- ext(-16.1,40.18, 32.88, 84.73)
+r<- crop(r, e)
+r <- project(r, "EPSG:3035")
 values(r) <- 1:ncell(r)
 
 v <- vect(NNI.NNI_SES)
-NNIr <- rasterize(v, r, field="nni")
+NNIr <- rasterize(v, r, field="range")
 
 world <- ne_countries(scale = "medium", returnclass = "sf")
+europe <- world[world$continent == "Europe", ]
+
+europe <- europe %>% st_transform(crs = st_crs(3035))
 
 NNIr_sp <- as.polygons(NNIr, dissolve=FALSE)
 NNIr_sp %>% 
   st_as_sf () %>%  
   ggplot()+
-  geom_sf(aes(fill = factor(range)))+
-  geom_sf(data=world,
+  geom_sf(aes(fill = factor(last)))+
+  geom_sf(data=europe,
           colour = "black", fill = "transparent")+
   scale_fill_manual(values = c("#56B4E9","#E69F00"), labels=c("0.0-1.0","> 1"))+
-  coord_sf(xlim = c(-13, 51), ylim = c(36, 71), expand = TRUE)+
+  coord_sf(xlim = c(2100000, 6500000), ylim = c(1100000, 5500000), expand = TRUE, datum = sf::st_crs(3035))+
   labs(title = "Average Nearest Neighbor Index", x="Longitude", y="Latitude", fill = "NNI") +theme_light()+
   theme(legend.background=element_blank(),
         panel.grid = element_blank(),
