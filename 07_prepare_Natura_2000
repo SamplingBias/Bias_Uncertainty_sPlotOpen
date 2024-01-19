@@ -8,7 +8,7 @@ library(viridis)
 d <- readRDS("d.rds")
 
 
-Nat2000 <- st_read("eea_v_3035_100_k_natura2000_p_2015_v6_r00", "Natura2000_end2015.shp")
+Nat2000 <- st_read("Natura2000", "Natura2000_end2021_epsg3035.shp")
 
 point <- d %>% dplyr::select(X, Y, PlotObservationID)%>%unique()%>%
       drop_na()%>%
