@@ -42,7 +42,7 @@ p <- ggplot() +
   geom_line(data = d, aes(x = YearDif, y = TU25), color = "blue") +
   geom_line(data = d, aes(x = YearDif, y = TU5), color = "red") +
   geom_line(data = d, aes(x = YearDif, y = TU1), color = "black") +
-  labs(title = "Curve of temporal decay", x = "Years of distance", y = "Temporal precision")
+  labs( x = "Years of distance", y = "Temporal precision")
 
 ggsave(plot = p,
        filename = "curveTU.jpg",
@@ -52,10 +52,15 @@ ggsave(plot = p,
 ############ PLOT #############
 
 r <- rast(resolution=0.5)
+e <- ext(-16.1,40.18, 32.88, 84.73)
+r<- crop(r, e)
+r <- project(r, "EPSG:3035")
 values(r) <- 1:ncell(r)
 
 df.r <- as.data.frame(r, xy=TRUE)
 colnames(df.r)<- c("x","y","id")
+
+
 
 ############ plot temporal uncertainty median ############
 
@@ -67,16 +72,12 @@ dtu<- d %>% dplyr::select(id, PlotObservationID, TU1, TU5, TU25)%>% unique()%>% 
   dplyr::select(median1, median5, median25, id)
 
 dtu <- dtu %>% inner_join(., df.r, by="id")%>%
-  st_as_sf(coords = c("x", "y"), crs = st_crs("+proj=longlat +datum=WGS84")) %>%
-  st_transform(crs = st_crs("+proj=longlat +datum=WGS84"))
-
+  st_as_sf(coords = c("x", "y"), crs = st_crs(3035)) 
 
 v <- vect(dtu)
 TUr <- rasterize(v, r, field=c("median1","median5","median25"))
 
 ####### stack with same scale of values #######
-
-stack_TU <- stack(TUr$median1, TUr$median5, TUr$median25)
 
 stack_TU <-
   as.data.frame(TUr, xy = TRUE) %>%
@@ -91,7 +92,10 @@ GGstack_TU <-
 
 GGstack_TU$variable <- as.factor(GGstack_TU$variable)
 
-world <- ne_coastline(scale = "medium", returnclass = "sf")
+world <- ne_countries(scale = "medium", returnclass = "sf")
+europe <- world[world$continent == "Europe", ]
+
+europe <- europe %>% st_transform(crs = st_crs(3035))
 
 GGstack_TU <- GGstack_TU %>%
   mutate(variable = str_replace_all(variable, c("median1_last" = "z=-1", "median5_last" = "z=-1/5", "median25_last" = "z=-1/25")))
@@ -102,12 +106,12 @@ GGstack_TU$variable <- factor(GGstack_TU$variable, levels = c("z=-1", "z=-1/5", 
 
 s1<- GGstack_TU %>%
   ggplot() +
-  geom_sf(data=world,
+  geom_sf(data=europe,
           colour = "black", fill = "lightgray", size=0.3)+
   geom_tile(aes(x = x, y = y, fill = value)) +
   facet_wrap(~ variable, nrow = 1) + 
   scale_fill_viridis(option='viridis',direction = 1,alpha = 0.7, limits=c(0, 1))+
-  labs(x="Longitude",y="Latitude", fill="Uncertainty (median)")+
+  labs( fill="Uncertainty (median)")+
   theme_light()+
   theme_light()+
   theme(
@@ -126,7 +130,7 @@ s1<- GGstack_TU %>%
     strip.text = element_text(size = 18,face = 'bold', colour = "black"))+
   guides(fill = guide_colourbar(title.position="top", title.hjust = 0.5, barwidth = 21, barheight = 1.9),
          size = guide_legend(title.position="top", title.hjust = 0.5))+
-  coord_sf(xlim = c(-13, 42), ylim = c(36, 71), expand = TRUE)
+  coord_sf(xlim = c(2100000, 6500000), ylim = c(1100000, 5500000), expand = TRUE, datum = sf::st_crs(3035))
 
 
 
