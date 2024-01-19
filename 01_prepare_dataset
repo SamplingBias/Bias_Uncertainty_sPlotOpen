@@ -22,26 +22,50 @@ d$Year <- substr(d$Date_of_recording, 1, 4)
 d <- d[d$Year >= 1992,]
 
 r <- rast(resolution=0.5)
+e <- ext(-16.1,40.18, 32.88, 84.73)
+r<- crop(r, e)
+r <- project(r, "EPSG:3035")
 values(r) <- 1:ncell(r)
+
+#r <- rast(resolution=55000, crs="EPSG:3035", ext(1896628.62,7104179.2, 1095703.18, 6882401.15))
+
+
 r <- as.polygons(r)
 r.sf <- st_as_sf(r)
-st_crs(r.sf) <- st_crs("+proj=longlat +datum=WGS84")
-r.sf <- st_transform(r.sf, crs = st_crs(r.sf))
+st_crs(r.sf) <- st_crs(3035)
+r.sf <- st_transform(r.sf, crs = st_crs(3035))
 r.sf <- st_make_valid(r.sf) 
 
 dCoord <- d %>% dplyr::select(Longitude, Latitude, PlotObservationID)%>%
-          unique()%>%
-          drop_na() %>%
-          st_as_sf(coords = c("Longitude", "Latitude"), crs = st_crs("+proj=longlat +datum=WGS84")) %>%
-          st_transform(crs = st_crs("+proj=longlat +datum=WGS84"))
+  unique()%>%
+  drop_na() %>%
+  st_as_sf(coords = c("Longitude", "Latitude"), crs = st_crs("+proj=longlat +datum=WGS84")) %>%
+  st_crop(., c(xmin = -16.1, ymin = 32.88, xmax = 40.18  , ymax =84.73))%>%
+  st_transform(crs = st_crs(3035))
 
 OV <- st_intersects(dCoord, r.sf)
 OV_l <- unlist(OV) 
+
 d_id <- d %>% dplyr::select(Longitude, Latitude, PlotObservationID)%>%
   unique()%>%
   drop_na() %>%
+  st_as_sf(coords = c("Longitude", "Latitude"), crs = st_crs("+proj=longlat +datum=WGS84")) %>%
+  st_crop(., c(xmin = -16.1, ymin = 32.88, xmax = 40.18 , ymax =84.73))%>%
+  st_transform(crs = st_crs(3035))%>%
+  data.frame(st_coordinates(st_cast(.,"MULTIPOINT")))%>%
+  dplyr::select(-geometry)%>%
   cbind(., id=OV_l) %>%
-  dplyr::select(id, PlotObservationID)
+  dplyr::select(id, PlotObservationID) #plot: 9481
 
-d <- d %>% left_join(., d_id, by="PlotObservationID")
+d <- d %>% 
+  dplyr::select(Longitude, Latitude, PlotObservationID, Species, Year)%>%
+  unique()%>%
+  drop_na() %>%
+  st_as_sf(coords = c("Longitude", "Latitude"), crs = st_crs("+proj=longlat +datum=WGS84")) %>%
+  st_crop(., c(xmin = -16.1, ymin = 32.88, xmax = 40.18 , ymax =84.73))%>%
+  st_transform(crs = st_crs(3035))%>%
+  data.frame(st_coordinates(st_cast(.,"MULTIPOINT")))%>%
+  dplyr::select(-geometry) %>% left_join(., d_id, by="PlotObservationID")
+
+
 saveRDS(d, "d.rds")
