@@ -13,9 +13,12 @@ NNI.NNI_SES <- readRDS("NNI.NNI_SES.rds")
 nNat2 <- readRDS("nNat2.rds") 
 
 d <- readRDS("d.rds")
-
+dTB <- readRDS("dTB.rds")
 
 r <- rast(resolution=0.5)
+e <- ext(-16.1,40.18, 32.88, 84.73)
+r<- crop(r, e)
+r <- project(r, "EPSG:3035")
 values(r) <- 1:ncell(r)
 
 df.r <- as.data.frame(r, xy=TRUE)
@@ -27,38 +30,16 @@ nPlot <- d %>% dplyr::select(id, PlotObservationID)%>% unique()%>% group_by(id) 
   ungroup() %>% dplyr::select(id, nPlot)%>% unique()%>%
   inner_join(., df.r, by="id")
 
-
-est <- read.csv("Estimators.CSV", header=T, sep=";")
-est$Latitude <- gsub(est$Latitude,pattern = ',',replacement = '.')
-est$Longitude <- gsub(est$Longitude,pattern = ',',replacement = '.')
-est$Completeness <- gsub(est$Completeness,pattern = ',',replacement = '.')
-
-comp <- est %>% dplyr::select(Longitude, Latitude, Completeness) %>% drop_na() 
-comp$Longitude <-as.numeric(comp[,1])
-comp$Latitude <-as.numeric(comp[,2])
-comp$Completeness <-as.numeric(comp[,3])
-
-r <- rast(resolution=0.5)
-values(r) <- 1:ncell(r)
-
-
-comp <- comp %>% 
-  st_as_sf(coords = c("Longitude", "Latitude"), crs = st_crs("+proj=longlat +datum=WGS84")) %>%
-  st_transform(crs = st_crs("+proj=longlat +datum=WGS84"))
-
-
-v <- vect(comp)
-compr <- rasterize(comp, r, field="Completeness", fun=mean)
+compr <- readRDS("compr.rds")
 
 
 median_dist <- readRDS("density.rds")
-pop05 <- readRDS("pop05.rds") # human population density rasterlayer
-pop05 <- rast(pop05)
+median_dist <- project(median_dist, r)
+pop05 <- rast("ppp_2014_1km_Aggregated.tif")
+pop05 <- project(pop05, r)
 
 rough <- rast("roughness_50KMmd_GMTEDmd.tif")
-rough <- project(rough, "+proj=longlat +datum=WGS84", res =0.5)
-e <- ext(-30, 54, 25, 74 )
-rough<- crop(rough, e)
+rough <- project(rough, r)
 
 NAT_nPlot <- nNat2 %>% inner_join(., nPlot, by="id")
 
@@ -67,8 +48,8 @@ cells <- NAT_nPlot$id
 ctr <- as.data.frame(xyFromCell(r, cells))
 
 ctr <- ctr %>% 
-  st_as_sf(coords = c("x", "y"), crs = st_crs("+proj=longlat +datum=WGS84")) %>%
-  st_transform(crs = st_crs("+proj=longlat +datum=WGS84"))
+  st_as_sf(coords = c("x", "y"), crs = st_crs(3035)) %>%
+  st_transform(crs = st_crs(3035))
 
 Vpop05 <- terra::extract(pop05, ctr)
 Vdis <- terra::extract(median_dist,ctr)
@@ -76,7 +57,7 @@ Vcompr <- terra::extract(compr,ctr)
 Vrough <- terra::extract(rough,ctr)
 
 ########## GAM COMP with  S(x,y) ########
-NAT_DIS_PLOT_POP_COMP_ROU_auto <- cbind(NAT_nPlot, pop=Vpop05$POP_DENS_2020_1km_Aggregated, dis=Vdis, comp=Vcompr$mean, rough=Vrough$roughness_50KMmd_GMTEDmd) %>% drop_na()
+NAT_DIS_PLOT_POP_COMP_ROU_auto <- cbind(NAT_nPlot, pop=Vpop05$ppp_2014_1km_Aggregated, dis=Vdis$lyr.1, comp=Vcompr$last, rough=Vrough$roughness_50KMmd_GMTEDmd) %>% drop_na()
 
 
 NAT_DIS_PLOT_POP_COMP_ROU <- NAT_DIS_PLOT_POP_COMP_ROU_auto %>% dplyr::select(rIN, dis,pop, comp, rough)
@@ -86,7 +67,7 @@ scaled_data <- NAT_DIS_PLOT_POP_COMP_ROU %>%
   mutate(across(everything(), scale)) %>%
   mutate(across(everything(), function(x) (x - min(x)) / (max(x) - min(x))))
 
-colnames(scaled_data) <- c("N2K","pop","road","comp","rough")
+colnames(scaled_data) <- c("N2K","road","pop", "comp","rough")
 scaled_data <- scaled_data  %>% relocate("comp", .before = "N2K")
 
 scaled_data <- scaled_data  %>% cbind(x= NAT_DIS_PLOT_POP_COMP_ROU_auto$x, y=NAT_DIS_PLOT_POP_COMP_ROU_auto$y)
@@ -120,7 +101,7 @@ moran
 ############ GAM NNI s(x,y)
 
 NNI <- NNI.NNI_SES %>% dplyr::select(id, nni)
-NAT_DIS_PLOT_POP_NNI_ROU_auto <- cbind(NAT_nPlot, pop=Vpop05$POP_DENS_2020_1km_Aggregated, dis=Vdis, rough=Vrough$roughness_50KMmd_GMTEDmd) %>% drop_na() %>% inner_join(., NNI, by="id") %>% drop_na()
+NAT_DIS_PLOT_POP_NNI_ROU_auto <- cbind(NAT_nPlot, pop=Vpop05$ppp_2014_1km_Aggregated, dis=Vdis$lyr.1, rough=Vrough$roughness_50KMmd_GMTEDmd) %>% drop_na() %>% inner_join(., NNI, by="id") %>% drop_na()
 
 
 NAT_DIS_PLOT_POP_NNI_ROU <- NAT_DIS_PLOT_POP_NNI_ROU_auto %>% dplyr::select(rIN, dis,pop, rough, nni)
@@ -135,7 +116,7 @@ scaled_data <- scaled_data  %>% relocate("nni", .before = "rIN")
 
 scaled_data <- scaled_data  %>% cbind(x= NAT_DIS_PLOT_POP_NNI_ROU_auto$x, y=NAT_DIS_PLOT_POP_NNI_ROU_auto$y)
 
-colnames(scaled_data) <- c("nni","rIN","nPlot", "pop","dis","rough", "x", "y")
+colnames(scaled_data) <- c("nni","rIN","dis", "pop","rough", "x", "y")
 
 NNI <- 1
 pred_cols <- 2:6
@@ -167,7 +148,7 @@ dTB <- dTB %>% dplyr::select(id, J)
 
 
 
-NAT_DIS_PLOT_POP_EV_ROU <- cbind(NAT_nPlot, pop=Vpop05$POP_DENS_2020_1km_Aggregated, dis=Vdis, rough=Vrough$roughness_50KMmd_GMTEDmd) %>% inner_join(.,dTB, by="id") %>% drop_na()
+NAT_DIS_PLOT_POP_EV_ROU <- cbind(NAT_nPlot, pop=Vpop05$ppp_2014_1km_Aggregated, dis=Vdis$lyr.1, rough=Vrough$roughness_50KMmd_GMTEDmd) %>% inner_join(.,dTB, by="id") %>% drop_na()
 
 NAT_DIS_PLOT_POP_EV_ROU_auto <- NAT_DIS_PLOT_POP_EV_ROU%>% dplyr::select(rIN, dis, pop, rough, J)
 
@@ -202,7 +183,7 @@ moran
 ###### GAM NNI without random distribution
 
 NNI <- NNI.NNI_SES %>% dplyr::select(id, nni)
-NAT_DIS_PLOT_POP_NNI_ROU_auto <- cbind(NAT_nPlot, pop=Vpop05$POP_DENS_2020_1km_Aggregated, dis=Vdis, rough=Vrough$roughness_50KMmd_GMTEDmd) %>% drop_na() %>% inner_join(., NNI, by="id") %>% drop_na()%>%filter(!nni>1)
+NAT_DIS_PLOT_POP_NNI_ROU_auto <- cbind(NAT_nPlot, pop=Vpop05$ppp_2014_1km_Aggregated, dis=Vdis$lyr.1, rough=Vrough$roughness_50KMmd_GMTEDmd) %>% drop_na() %>% inner_join(., NNI, by="id") %>% drop_na()%>%filter(!nni>1)
 
 
 NAT_DIS_PLOT_POP_NNI_ROU <- NAT_DIS_PLOT_POP_NNI_ROU_auto %>% dplyr::select(rIN, dis,pop, rough, nni)
@@ -217,7 +198,7 @@ scaled_data <- scaled_data  %>% relocate("nni", .before = "rIN")
 
 scaled_data <- scaled_data  %>% cbind(x= NAT_DIS_PLOT_POP_NNI_ROU_auto$x, y=NAT_DIS_PLOT_POP_NNI_ROU_auto$y)
 
-colnames(scaled_data) <- c("nni","rIN", "pop","dis","rough", "x", "y")
+colnames(scaled_data) <- c("nni","rIN", "dis","pop", "rough", "x", "y")
 
 NNI <- 1
 pred_cols <- 2:5
@@ -244,7 +225,7 @@ moran
 #### GAM nni ses
 
 NNI <- NNI.NNI_SES %>% dplyr::select(id, nni.ses)
-NAT_DIS_PLOT_POP_NNI_ROU_auto <- cbind(NAT_nPlot, pop=Vpop05$POP_DENS_2020_1km_Aggregated, dis=Vdis, rough=Vrough$roughness_50KMmd_GMTEDmd) %>% drop_na() %>% inner_join(., NNI, by="id") %>% drop_na()
+NAT_DIS_PLOT_POP_NNI_ROU_auto <- cbind(NAT_nPlot, pop=Vpop05$ppp_2014_1km_Aggregated, dis=Vdis$lyr.1, rough=Vrough$roughness_50KMmd_GMTEDmd) %>% drop_na() %>% inner_join(., NNI, by="id") %>% drop_na()
 
 
 
@@ -260,7 +241,7 @@ scaled_data <- scaled_data  %>% relocate("nni.ses", .before = "rIN")
 
 scaled_data <- scaled_data  %>% cbind(x= NAT_DIS_PLOT_POP_NNI_ROU_auto$x, y=NAT_DIS_PLOT_POP_NNI_ROU_auto$y)
 
-colnames(scaled_data) <- c("nni","N2K", "pop","road","rough", "x", "y")
+colnames(scaled_data) <- c("nni","N2K", "road", "pop", "rough", "x", "y")
 
 NNI <- 1
 pred_cols <- 2:5
@@ -303,3 +284,9 @@ p2 <- p2 + theme_minimal()
 
 ptot <- p3 + p4 + p5 + p6 + p1 + p2 + plot_layout(ncol = 6)
 ptot
+
+ggsave(plot = ptot,
+       filename = "curvegam.jpg",
+       width = 20,
+       height = 10,
+       dpi = 600)
