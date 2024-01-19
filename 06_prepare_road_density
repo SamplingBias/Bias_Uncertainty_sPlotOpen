@@ -28,17 +28,10 @@ Europe.owin <- as.owin(Europe.tr)
 
 ppp.europe <- ppp[Europe.owin] #retain points that are inside the mask
 
-kde <- density(ppp.europe, sigma= bw.scott, kernel= "gaussian", positive= T) #compute density with smoothing kernel choosen by the bw.scott method
-
-#from im object to raster
-
-raster.kde <- rast(kde)
+kde <- density(ppp.europe, sigma= bw.scott, kernel= "gaussian", positive= T, eps= 39539.04)
+artina Livornese: raster.kde <- rast(kde)
 
 #assign the crs of the projected coordinates given at the beginning 
 crs(raster.kde) <- "+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs +type=crs"
 
-
-#reproject the raster 
-raster.kde.tr <- project(raster.kde, "+proj=longlat +datum=WGS84")
-
-saveRDS(raster.kde.tr, "density.rds")
+saveRDS(raster.kde, "density.rds")
