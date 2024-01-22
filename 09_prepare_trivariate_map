@@ -11,7 +11,7 @@ library(viridis)
 library(ggplot2)
 library(rnaturalearth)
 library(sf)
-library(raster)
+library(terra)
 
 d <- readRDS("d.rds")
 
