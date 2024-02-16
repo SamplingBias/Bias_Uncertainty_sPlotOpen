@@ -87,11 +87,11 @@ ModelCOMP <- gam(form_gamCOMP, data = scaled_data, method = "REML")
 
 mor <- data.frame(cbind(resid=ModelCOMP[["residuals"]], x=NAT_DIS_PLOT_POP_COMP_ROU_auto$x, y=NAT_DIS_PLOT_POP_COMP_ROU_auto$y))
 
-coordinates_sp <- SpatialPoints(mor[,2:3], proj4string = CRS("+proj=longlat +datum=WGS84"))
+coordinates_sp <- SpatialPoints(mor[,2:3], proj4string = CRS("EPSG:3035")
 
-spatial_weights <- knearneigh(coordinates_sp, longlat = TRUE)
+spatial_weights <- knearneigh(coordinates_sp)
 
-spatial_weights <- knn2nb(knearneigh(coordinates_sp, longlat = TRUE, k=6), sym=T)
+spatial_weights <- knn2nb(knearneigh(coordinates_sp, k=6), sym=T)
 weights <- nb2listw(spatial_weights, style="B")
 moran <- moran.mc(mor$resid, weights, nsim=999)
 moran
@@ -130,11 +130,11 @@ ModelNNI <- gam(form_gamNNI, data = scaled_data, method = "REML")
 
 mor <- data.frame(cbind(resid=ModelNNI[["residuals"]], x=NAT_DIS_PLOT_POP_NNI_ROU_auto$x, y=NAT_DIS_PLOT_POP_NNI_ROU_auto$y))
 
-coordinates_sp <- SpatialPoints(mor[,2:3], proj4string = CRS("+proj=longlat +datum=WGS84"))
+coordinates_sp <- SpatialPoints(mor[,2:3], proj4string = CRS("EPSG:3035")
 
-spatial_weights <- knearneigh(coordinates_sp, longlat = TRUE)
+spatial_weights <- knearneigh(coordinates_sp)
 
-spatial_weights <- knn2nb(knearneigh(coordinates_sp, longlat = TRUE), sym=T)
+spatial_weights <- knn2nb(knearneigh(coordinates_sp), sym=T)
 weights <- nb2listw(spatial_weights, style="B")
 moran <- moran.mc(mor$resid, weights, nsim=999)
 moran
@@ -171,11 +171,11 @@ ModelEV <- gam(form_gamEV, data = scaled_data, method = "REML")
 
 mor <- data.frame(cbind(resid=ModelEV[["residuals"]], x=NAT_DIS_PLOT_POP_EV_ROU$x, y=NAT_DIS_PLOT_POP_EV_ROU$y))
 
-coordinates_sp <- SpatialPoints(mor[,2:3], proj4string = CRS("+proj=longlat +datum=WGS84"))
+coordinates_sp <- SpatialPoints(mor[,2:3], proj4string = CRS("EPSG:3035")
 
-spatial_weights <- knearneigh(coordinates_sp, longlat = TRUE)
+spatial_weights <- knearneigh(coordinates_sp)
 
-spatial_weights <- knn2nb(knearneigh(coordinates_sp, longlat = TRUE, k=2), sym=T)
+spatial_weights <- knn2nb(knearneigh(coordinates_sp, k=2), sym=T)
 weights <- nb2listw(spatial_weights, style="B")
 moran <- moran.mc(mor$resid, weights, nsim=999)
 moran
@@ -212,11 +212,11 @@ ModelNNI <- gam(form_gamNNI, data = scaled_data, method = "REML")
 
 mor <- data.frame(cbind(resid=ModelNNI[["residuals"]], x=NAT_DIS_PLOT_POP_NNI_ROU_auto$x, y=NAT_DIS_PLOT_POP_NNI_ROU_auto$y))
 
-coordinates_sp <- SpatialPoints(mor[,2:3], proj4string = CRS("+proj=longlat +datum=WGS84"))
+coordinates_sp <- SpatialPoints(mor[,2:3], proj4string = CRS("EPSG:3035")
 
-spatial_weights <- knearneigh(coordinates_sp, longlat = TRUE)
+spatial_weights <- knearneigh(coordinates_sp)
 
-spatial_weights <- knn2nb(knearneigh(coordinates_sp, longlat = TRUE, k=4), sym=T)
+spatial_weights <- knn2nb(knearneigh(coordinates_sp, k=4), sym=T)
 weights <- nb2listw(spatial_weights, style="B")
 moran <- moran.mc(mor$resid, weights, nsim=999)
 moran
@@ -255,11 +255,11 @@ ModelNNI <- gam(form_gamNNI, data = scaled_data, method = "REML")
 
 mor <- data.frame(cbind(resid=ModelNNI[["residuals"]], x=NAT_DIS_PLOT_POP_NNI_ROU_auto$x, y=NAT_DIS_PLOT_POP_NNI_ROU_auto$y))
 
-coordinates_sp <- SpatialPoints(mor[,2:3], proj4string = CRS("+proj=longlat +datum=WGS84"))
+coordinates_sp <- SpatialPoints(mor[,2:3], proj4string = CRS("EPSG:3035")
 
-spatial_weights <- knearneigh(coordinates_sp, longlat = TRUE)
+spatial_weights <- knearneigh(coordinates_sp)
 
-spatial_weights <- knn2nb(knearneigh(coordinates_sp, longlat = TRUE, k=2), sym=T)
+spatial_weights <- knn2nb(knearneigh(coordinates_sp, k=2), sym=T)
 weights <- nb2listw(spatial_weights, style="B")
 moran <- moran.mc(mor$resid, weights, nsim=999)
 moran
