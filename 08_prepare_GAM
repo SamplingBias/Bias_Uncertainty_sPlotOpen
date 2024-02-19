@@ -7,6 +7,7 @@ library(spdep)
 library(gratia)
 library(patchwork)
 library(sp)
+library(pgirmess)
 
 NNI.NNI_SES <- readRDS("NNI.NNI_SES.rds") 
 
@@ -86,12 +87,20 @@ form_gamCOMP <- as.formula(paste0(names(scaled_data)[COMP], "~", paste0("s(x,y)"
 ModelCOMP <- gam(form_gamCOMP, data = scaled_data, method = "REML")
 
 mor <- data.frame(cbind(resid=ModelCOMP[["residuals"]], x=NAT_DIS_PLOT_POP_COMP_ROU_auto$x, y=NAT_DIS_PLOT_POP_COMP_ROU_auto$y))
+### correlogram ###
+
+coordinates_sp <- mor %>% st_as_sf(coords = c("x", "y"), crs = st_crs(3035))
+sp.cor2 <- correlog(st_coordinates(coordinates_sp),mor$resid, method = "Moran", nbclass=10)
+sp.cor2
+
+plot(sp.cor2)
+### global moran test ####
 
 coordinates_sp <- SpatialPoints(mor[,2:3], proj4string = CRS("EPSG:3035"))
 
 spatial_weights <- knearneigh(coordinates_sp)
 
-spatial_weights <- knn2nb(knearneigh(coordinates_sp, k=6), sym=T)
+spatial_weights <- knn2nb(knearneigh(coordinates_sp, k=7), sym=T)
 weights <- nb2listw(spatial_weights, style="B")
 moran <- moran.mc(mor$resid, weights, nsim=999)
 moran
@@ -130,11 +139,21 @@ ModelNNI <- gam(form_gamNNI, data = scaled_data, method = "REML")
 
 mor <- data.frame(cbind(resid=ModelNNI[["residuals"]], x=NAT_DIS_PLOT_POP_NNI_ROU_auto$x, y=NAT_DIS_PLOT_POP_NNI_ROU_auto$y))
 
+### correlogram ###
+
+coordinates_sp <- mor %>% st_as_sf(coords = c("x", "y"), crs = st_crs(3035))
+sp.cor2 <- correlog(st_coordinates(coordinates_sp),mor$resid, method = "Moran", nbclass=10)
+sp.cor2
+
+plot(sp.cor2)
+
+### global moran test ####
+
 coordinates_sp <- SpatialPoints(mor[,2:3], proj4string = CRS("EPSG:3035")
 
 spatial_weights <- knearneigh(coordinates_sp)
 
-spatial_weights <- knn2nb(knearneigh(coordinates_sp), sym=T)
+spatial_weights <- knn2nb(knearneigh(coordinates_sp, k=7), sym=T)
 weights <- nb2listw(spatial_weights, style="B")
 moran <- moran.mc(mor$resid, weights, nsim=999)
 moran
@@ -171,11 +190,21 @@ ModelEV <- gam(form_gamEV, data = scaled_data, method = "REML")
 
 mor <- data.frame(cbind(resid=ModelEV[["residuals"]], x=NAT_DIS_PLOT_POP_EV_ROU$x, y=NAT_DIS_PLOT_POP_EV_ROU$y))
 
+### correlogram ###
+
+coordinates_sp <- mor %>% st_as_sf(coords = c("x", "y"), crs = st_crs(3035))
+sp.cor2 <- correlog(st_coordinates(coordinates_sp),mor$resid, method = "Moran", nbclass=10)
+sp.cor2
+
+plot(sp.cor2)
+
+## global moran test ###
+
 coordinates_sp <- SpatialPoints(mor[,2:3], proj4string = CRS("EPSG:3035"))
 
 spatial_weights <- knearneigh(coordinates_sp)
 
-spatial_weights <- knn2nb(knearneigh(coordinates_sp, k=2), sym=T)
+spatial_weights <- knn2nb(knearneigh(coordinates_sp, k=7), sym=T)
 weights <- nb2listw(spatial_weights, style="B")
 moran <- moran.mc(mor$resid, weights, nsim=999)
 moran
@@ -211,6 +240,15 @@ form_gamNNI <- as.formula(paste0(names(scaled_data)[NNI], "~", paste0("s(x,y)","
 ModelNNI <- gam(form_gamNNI, data = scaled_data, method = "REML")
 
 mor <- data.frame(cbind(resid=ModelNNI[["residuals"]], x=NAT_DIS_PLOT_POP_NNI_ROU_auto$x, y=NAT_DIS_PLOT_POP_NNI_ROU_auto$y))
+### correlogram ###
+
+coordinates_sp <- mor %>% st_as_sf(coords = c("x", "y"), crs = st_crs(3035))
+sp.cor2 <- correlog(st_coordinates(coordinates_sp),mor$resid, method = "Moran", nbclass=10)
+sp.cor2
+
+plot(sp.cor2)
+
+### global moran test ####
 
 coordinates_sp <- SpatialPoints(mor[,2:3], proj4string = CRS("EPSG:3035"))
 
@@ -255,11 +293,20 @@ ModelNNI <- gam(form_gamNNI, data = scaled_data, method = "REML")
 
 mor <- data.frame(cbind(resid=ModelNNI[["residuals"]], x=NAT_DIS_PLOT_POP_NNI_ROU_auto$x, y=NAT_DIS_PLOT_POP_NNI_ROU_auto$y))
 
+### correlogram ###
+
+coordinates_sp <- mor %>% st_as_sf(coords = c("x", "y"), crs = st_crs(3035))
+sp.cor2 <- correlog(st_coordinates(coordinates_sp),mor$resid, method = "Moran", nbclass=10)
+sp.cor2
+
+plot(sp.cor2)
+
+### global moran test ###
 coordinates_sp <- SpatialPoints(mor[,2:3], proj4string = CRS("EPSG:3035"))
 
 spatial_weights <- knearneigh(coordinates_sp)
 
-spatial_weights <- knn2nb(knearneigh(coordinates_sp, k=2), sym=T)
+spatial_weights <- knn2nb(knearneigh(coordinates_sp, k=12), sym=T)
 weights <- nb2listw(spatial_weights, style="B")
 moran <- moran.mc(mor$resid, weights, nsim=999)
 moran
