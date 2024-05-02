@@ -50,6 +50,7 @@ ggsave(plot = p,
        height = 5,
        dpi = 600)
 ############ PLOT #############
+rm(p)
 
 r <- rast(resolution=0.5)
 e <- ext(-16.1,40.18, 32.88, 84.73)
@@ -77,6 +78,7 @@ dtu <- dtu %>% inner_join(., df.r, by="id")%>%
 v <- vect(dtu)
 TUr <- rasterize(v, r, field=c("median1","median5","median25"))
 
+rm(v)
 ####### stack with same scale of values #######
 
 stack_TU <-
@@ -96,6 +98,7 @@ world <- ne_countries(scale = "medium", returnclass = "sf")
 europe <- world[world$continent == "Europe", ]
 
 europe <- europe %>% st_transform(crs = st_crs(3035))
+rm(world)
 
 GGstack_TU <- GGstack_TU %>%
   mutate(variable = str_replace_all(variable, c("median1_last" = "z=-1", "median5_last" = "z=-1/5", "median25_last" = "z=-1/25")))
