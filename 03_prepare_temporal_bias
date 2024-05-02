@@ -1,5 +1,5 @@
-require(TPD)
-require(tidyverse)
+library(TPD)
+library(tidyverse)
 library(vegan)
 library(viridis)
 library(ggplot2)
@@ -62,6 +62,8 @@ dTB <- dTB %>% inner_join(., df.r, by="id")%>%
 
 v <- vect(dTB)
 dTBr <- rasterize(v, r, field="J")
+
+rm(v)
 
 ## spatial polygons of world's countries
 world <- ne_countries(scale = "medium", returnclass = "sf")
