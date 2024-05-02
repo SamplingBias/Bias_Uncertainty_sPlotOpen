@@ -16,6 +16,9 @@ NOspecies_level <- DT2.oa[!grepl("_", DT2.oa$Species),]
 # Merge data
 d <- merge(species_level, header.oa, by = 'PlotObservationID')
 
+rm(DT2.oa)
+rm(header.oa)
+
 # Filter for Europe, Year >= 1992, and Location uncertainty < 250
 d <- d[d$Continent == 'Europe' & d$Location_uncertainty < 250,]
 d$Year <- substr(d$Date_of_recording, 1, 4)
@@ -56,6 +59,8 @@ d_id <- d %>% dplyr::select(Longitude, Latitude, PlotObservationID)%>%
   dplyr::select(-geometry)%>%
   cbind(., id=OV_l) %>%
   dplyr::select(id, PlotObservationID) #plot: 9481
+
+rm(dCoord)
 
 d <- d %>% 
   dplyr::select(Longitude, Latitude, PlotObservationID, Species, Year)%>%
