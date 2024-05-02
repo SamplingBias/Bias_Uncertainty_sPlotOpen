@@ -5,13 +5,15 @@ library(sf)
 library(ggplot2)
 library(rnaturalearth)
 
+d <- readRDS("d.rds")
+
 ##### spatstat functions #####
 clarkevans <- function(X, correction=c("none", "Donnelly", "cdf"),
                        clipregion=NULL)
 {
   verifyclass(X, "ppp")
   W <- X$window
-  
+
   # validate correction argument
   gavecorrection <- !missing(correction)
   correction <- pickoption("correction", correction,
@@ -21,13 +23,13 @@ clarkevans <- function(X, correction=c("none", "Donnelly", "cdf"),
                              guard="guard",
                              cdf="cdf"),
                            multi=TRUE)
-  
+
   if(("Donnelly" %in% correction) && (W$type != "rectangle")) {
     if(gavecorrection)
       warning("Donnelly correction only available for rectangular windows")
     correction <- correction[correction != "Donnelly"]
   }
-  
+
   # guard correction applied iff `clipregion' is present
   isguard <- "guard" %in% correction
   askguard <- any(isguard)
@@ -39,7 +41,7 @@ clarkevans <- function(X, correction=c("none", "Donnelly", "cdf"),
     correction <- correction[!isguard]
   } else if(gaveguard && !askguard) 
     correction <- c(correction, "guard")
-  
+
   result <- clarkevansCalc(X, correction, clipregion)
   if(length(result) == 1L) result <- unname(result)
   return(result)
