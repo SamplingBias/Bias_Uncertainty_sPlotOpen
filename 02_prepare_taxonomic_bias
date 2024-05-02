@@ -48,6 +48,8 @@ inext <- function(x)
   return( ld_sr)
 }
 
+rm(md)
+
 ld_sr <- map(ld, ~ inext(.x))
 
 df_sc <- function(x)
@@ -56,7 +58,8 @@ df_sc <- function(x)
   return( ld_sc)
 }
 
- 
+rm(ld)
+
 ld_sc <- map(ld_sr, ~ df_sc(.x)) 
 ld_sc <- as.data.frame(unlist(ld_sc))
 ld_sc <- ld_sc %>% rename(SC=`unlist(ld_sc)`)
@@ -76,10 +79,14 @@ comp <- d %>% dplyr::select(-id) %>%
         inner_join(., df.r, by="id")%>%
         st_as_sf(coords = c("x", "y"), crs = st_crs(3035)) %>%
         st_transform(crs = st_crs(3035))
+
+saveRDS(comp, "comp.rds")
 comp <- comp %>% dplyr::select(geometry, SC) %>% unique() 
 
 v <- vect(comp)
 compr <- rasterize(v, r, field="SC")
+
+rm(v)
 
 world <- ne_countries(scale = "medium", returnclass = "sf")
 europe <- world[world$continent == "Europe", ]
