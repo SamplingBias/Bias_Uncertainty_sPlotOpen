@@ -22,6 +22,9 @@ ov <- purrr::map_depth(sp, 1, ~ifelse(is.null(.x), NA, .x) )
 
 OV_l <- unlist(ov)
 
+rm(Nat2000)
+rm(point)
+
 y3 <- d %>% dplyr::select(id, X, Y, PlotObservationID)%>%unique()%>%
       drop_na() %>%
       cbind(., lyr.1= OV_l)%>%drop_na() #47.14% IN
@@ -71,13 +74,11 @@ nNat2 <- nNat2 %>% inner_join(., df.r, by="id") %>%
 v <- vect(nNat2)
 Natr <- rasterize(v, r, field="rIN")
 
+rm(v)
+
 spNat <- as.polygons(Natr, dissolve=FALSE)
 
 world <- ne_coastline(scale = "medium", returnclass = "sf")
-europe <- world[world$continent == "Europe", ]
-
-europe <- europe %>% st_transform(crs = st_crs(3035))
-
 
 spNat  %>% 
   st_as_sf () %>%  
