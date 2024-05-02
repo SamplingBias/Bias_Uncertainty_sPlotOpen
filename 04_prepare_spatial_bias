@@ -201,12 +201,15 @@ dPlot <- d%>%
 
 id <- dPlot %>% dplyr::select(id)%>% drop_na()
 
+rm(dPlot)
 
 r <- as.polygons(r)
 r.sf <- st_as_sf(r)
 r.sf <- st_make_valid(r.sf) 
 sp <- st_intersects(r.sf, dPlot)
 res <- purrr::map_depth(sp, 1, ~ifelse(is.null(.x), NA, .x) )
+
+rm(r)
 
 OV_l <- unlist(res)
 
@@ -276,6 +279,8 @@ values(r) <- 1:ncell(r)
 
 v <- vect(NNI.NNI_SES)
 NNIr <- rasterize(v, r, field="range")
+
+rm(v)
 
 world <- ne_countries(scale = "medium", returnclass = "sf")
 europe <- world[world$continent == "Europe", ]
