@@ -13,6 +13,8 @@ roads <- roads %>% dplyr::filter(GP_RTP %in% c( "1", "2", "3"))  #filter roads i
 r_points <- st_cast(roads, "POINT")
 r_points <- sf::st_transform(r_points, crs= sf::st_crs(3035)) #need to project coordinates because spatstat deals with 2D coordinates 
 
+rm(roads)
+
 ppp<- as.ppp(r_points)
 
 saveRDS(ppp, "ppp.rds")
@@ -29,7 +31,7 @@ Europe.owin <- as.owin(Europe.tr)
 ppp.europe <- ppp[Europe.owin] #retain points that are inside the mask
 
 kde <- density(ppp.europe, sigma= bw.scott, kernel= "gaussian", positive= T, eps= 39539.04)
-artina Livornese: raster.kde <- rast(kde)
+raster.kde <- rast(kde)
 
 #assign the crs of the projected coordinates given at the beginning 
 crs(raster.kde) <- "+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs +type=crs"
