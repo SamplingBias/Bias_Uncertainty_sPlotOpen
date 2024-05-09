@@ -95,10 +95,9 @@ GGstack_TU <-
 GGstack_TU$variable <- as.factor(GGstack_TU$variable)
 
 world <- ne_countries(scale = "medium", returnclass = "sf")
-europe <- world[world$continent == "Europe", ]
 
-europe <- europe %>% st_transform(crs = st_crs(3035))
-rm(world)
+world <- world %>% st_transform(crs = st_crs(3035))
+
 
 GGstack_TU <- GGstack_TU %>%
   mutate(variable = str_replace_all(variable, c("median1_last" = "z=-1", "median5_last" = "z=-1/5", "median25_last" = "z=-1/25")))
