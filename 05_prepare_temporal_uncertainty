@@ -100,7 +100,7 @@ world <- world %>% st_transform(crs = st_crs(3035))
 
 
 GGstack_TU <- GGstack_TU %>%
-  mutate(variable = str_replace_all(variable, c("median1_last" = "z=-1", "median5_last" = "z=-1/5", "median25_last" = "z=-1/25")))
+  mutate(variable = str_replace_all(variable, c("median1" = "z=-1", "median5" = "z=-1/5", "median25" = "z=-1/25")))
 
 # Order the levels of the variable column
 GGstack_TU$variable <- factor(GGstack_TU$variable, levels = c("z=-1", "z=-1/5", "z=-1/25"))
@@ -108,7 +108,7 @@ GGstack_TU$variable <- factor(GGstack_TU$variable, levels = c("z=-1", "z=-1/5", 
 
 s1<- GGstack_TU %>%
   ggplot() +
-  geom_sf(data=europe,
+  geom_sf(data=world,
           colour = "black", fill = "lightgray", size=0.3)+
   geom_tile(aes(x = x, y = y, fill = value)) +
   facet_wrap(~ variable, nrow = 1) + 
