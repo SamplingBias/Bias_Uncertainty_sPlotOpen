@@ -254,7 +254,15 @@ combined_values.nniSES <- unlist(extracted_values.nniSES)
 
 nni.ses <- combined_values.nniSES
 
-NNI.NNI_SES <- data.frame(nni=nni, nni.ses=nni.ses) %>% 
+extracted_values.pSES <- list()
+ for (i in 1:length(test)) {
+extracted_values.pSES[[i]] <- test[[i]][["p.value"]][["R"]]
+}
+combined_values.pSES <- unlist(extracted_values.pSES)
+
+p.value <- combined_values.pSES
+
+NNI.NNI_SES <- data.frame(nni=nni, nni.ses=nni.ses, p.value) %>% 
   cbind(id=dPlot$id) %>% 
   inner_join(., df.r, by="id") %>% 
   unique() %>% 
