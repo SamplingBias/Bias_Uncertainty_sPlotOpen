@@ -201,8 +201,6 @@ dPlot <- d%>%
 
 id <- dPlot %>% dplyr::select(id)%>% drop_na()
 
-rm(dPlot)
-
 r <- as.polygons(r)
 r.sf <- st_as_sf(r)
 r.sf <- st_make_valid(r.sf) 
