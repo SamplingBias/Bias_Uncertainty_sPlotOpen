@@ -67,16 +67,15 @@ rm(v)
 
 ## spatial polygons of world's countries
 world <- ne_countries(scale = "medium", returnclass = "sf")
-europe <- world[world$continent == "Europe", ]
 
-europe <- europe %>% st_transform(crs = st_crs(3035))
+world <- world %>% st_transform(crs = st_crs(3035))
 
 dTB_sp <- as.polygons(dTBr, dissolve=FALSE)
 dTB_sp %>% 
   st_as_sf () %>%  
   ggplot()+
   geom_sf(aes(fill = last))+
-  geom_sf(data=europe,
+  geom_sf(data=world,
           colour = "black", fill = "transparent")+
   scale_fill_viridis(option='viridis',direction = 1,alpha = 0.7)+
   coord_sf(xlim = c(2100000, 6500000), ylim = c(1100000, 5500000), expand = TRUE, datum = sf::st_crs(3035))+
