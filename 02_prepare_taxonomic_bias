@@ -89,17 +89,15 @@ compr <- rasterize(v, r, field="SC")
 rm(v)
 
 world <- ne_countries(scale = "medium", returnclass = "sf")
-europe <- world[world$continent == "Europe", ]
-
 world <- world %>% st_transform(crs = st_crs(3035))
 
 compr_sp <- as.polygons(compr, dissolve=FALSE)
 compr_sp %>% 
   st_as_sf () %>%  
 ggplot()+
- geom_sf(aes(fill =last))+
   geom_sf(data=world,
-          colour = "black", fill = "transparent")+
+          colour = "black", fill = "lightgray")+
+  geom_sf(aes(fill =last))+
   scale_fill_viridis(option='viridis',direction = 1,alpha = 0.7)+
   coord_sf(xlim = c(2100000, 6500000), ylim = c(1100000, 5500000), expand = TRUE, datum = sf::st_crs(3035))+
   labs(title = "Completeness", fill = "Completeness") +theme_light()+
