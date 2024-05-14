@@ -282,6 +282,7 @@ rm(v)
 
 world <- ne_countries(scale = "medium", returnclass = "sf")
 
+world <- world %>% st_transform(crs = st_crs(3035))
 
 NNIr_sp <- as.polygons(NNIr, dissolve=FALSE)
 NNIr_sp %>% 
