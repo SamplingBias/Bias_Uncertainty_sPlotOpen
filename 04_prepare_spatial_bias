@@ -4,6 +4,7 @@ library(terra)
 library(sf)
 library(ggplot2)
 library(rnaturalearth)
+library(scico)
 
 d <- readRDS("d.rds")
 
@@ -276,7 +277,7 @@ r <- project(r, "EPSG:3035")
 values(r) <- 1:ncell(r)
 
 v <- vect(NNI.NNI_SES)
-NNIr <- rasterize(v, r, field="range")
+NNIr <- rasterize(v, r, field="nni")
 
 rm(v)
 
@@ -290,8 +291,8 @@ NNIr_sp %>%
   ggplot()+
   geom_sf(data=world,
           colour = "black", fill = "lightgray")+
-  geom_sf(aes(fill = factor(last)))+
-  scale_fill_manual(values = c("#56B4E9","#E69F00"), labels=c("0.0-1.0","> 1"))+
+  geom_sf(aes(fill = last))+
+  scale_fill_scico(palette='vik',direction = 1,alpha = 0.7, midpoint=1)+
   coord_sf(xlim = c(2100000, 6500000), ylim = c(1100000, 5500000), expand = TRUE, datum = sf::st_crs(3035))+
   labs(title = "Average Nearest Neighbor Index", x="Longitude", y="Latitude", fill = "NNI") +theme_light()+
   theme(legend.background=element_blank(),
