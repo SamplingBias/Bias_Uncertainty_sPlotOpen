@@ -74,9 +74,9 @@ dTB_sp <- as.polygons(dTBr, dissolve=FALSE)
 dTB_sp %>% 
   st_as_sf () %>%  
   ggplot()+
-  geom_sf(aes(fill = last))+
   geom_sf(data=world,
-          colour = "black", fill = "transparent")+
+          colour = "black", fill = "lightgray")+
+ geom_sf(aes(fill = last))+
   scale_fill_viridis(option='viridis',direction = 1,alpha = 0.7)+
   coord_sf(xlim = c(2100000, 6500000), ylim = c(1100000, 5500000), expand = TRUE, datum = sf::st_crs(3035))+
   labs(title = "Pielou's evenness", fill = "J Index") +theme_light()+
