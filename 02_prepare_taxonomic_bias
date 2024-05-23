@@ -14,12 +14,15 @@ d <- readRDS("d.rds")
 
 d$records <- 1
 
-# community matrix IDplots x species
+# nested dataframe of species, plots, records per id (grid cell)
+
 d_matrix <- d %>%
   dplyr::select(Species, PlotObservationID, records, id)%>%
   unique() %>%
   group_by(id)%>%
   nest()
+
+# community matrix IDplots x species
 
 matrix_next <- function(x)
   {
@@ -28,10 +31,16 @@ matrix_next <- function(x)
 }
 
 md <- map(d_matrix$data, ~ matrix_next(.x))
+
+# to remove grid cells with only 1 or 2 plots
+
 single_row_indices <- sapply(md, function(df) nrow(df) %in% c(1, 2))
 
 d_matrix <- d_matrix %>% cbind(na = single_row_indices) %>% filter(!na=="TRUE") %>% dplyr::select(-na) %>% filter(!id==2947)
 md <- map(d_matrix$data, ~ matrix_next(.x))
+
+# function to create the indicence frequence of the species
+
 list_next <- function(x)
 {
   names(x) <- NULL
@@ -74,6 +83,8 @@ values(r) <- 1:ncell(r)
 df.r <- as.data.frame(r, xy=TRUE)
 colnames(df.r)<- c("x","y","id")
 
+# sf points of the centroids of the grid cells with related completeness of the species richness value
+
 comp <- d %>% dplyr::select(-id) %>% 
         inner_join(., d_matrix_sc, by="PlotObservationID")%>%
         inner_join(., df.r, by="id")%>%
@@ -82,6 +93,8 @@ comp <- d %>% dplyr::select(-id) %>%
 
 saveRDS(comp, "comp.rds")
 comp <- comp %>% dplyr::select(geometry, SC) %>% unique() 
+
+# from vector to raster of completeness
 
 v <- vect(comp)
 compr <- rasterize(v, r, field="SC")
