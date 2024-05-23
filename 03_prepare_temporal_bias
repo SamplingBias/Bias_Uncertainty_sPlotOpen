@@ -11,6 +11,8 @@ d <- readRDS("d.rds")
 
 d$Year <- as.numeric(d$Year)
 
+#dataframe with the number of plots per year within each grid cell
+
 dd <- d %>% dplyr::select(id, PlotObservationID, Year) %>% unique() %>%
   group_by(id, Year) %>%
   mutate(nPlotY = n()) %>%
