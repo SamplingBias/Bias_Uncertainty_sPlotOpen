@@ -195,12 +195,14 @@ colnames(df.r)<- c("x","y","id")
 
 
 #d <- readRDS("d.rds")
-
+# sf points of the plots within each grid cell
 dPlot <- d%>% 
   dplyr::select(X, Y, id)%>%unique() %>%
          st_as_sf(coords = c("X", "Y"), crs = st_crs(3035))
 
 id <- dPlot %>% dplyr::select(id)%>% drop_na()
+
+#intersection of the european grid with the points 
 
 r <- as.polygons(r)
 r.sf <- st_as_sf(r)
@@ -212,11 +214,14 @@ rm(r)
 
 OV_l <- unlist(res)
 
+# geometric selection of the grids that overlaied the plots then, transformation in bbox
+
 dPlot_ov <- cbind(r.sf, id=OV_l)%>%drop_na()%>%dplyr::select(lyr.1, geometry)
 bbox_list <- lapply(dPlot_ov$geometry, st_bbox) 
 # Convert the list of bboxes to a data frame
 bbox_df <- data.frame(do.call(rbind, bbox_list)) %>% cbind(id=dPlot_ov$lyr.1)
 
+# nested dataframe by id of the plots coordinates
 
 dPlot <- d%>% 
   dplyr::select(X, Y, id)%>%
@@ -226,6 +231,7 @@ dPlot <- d%>%
   dplyr::select(X, Y, id)%>%
   group_by(id)%>% 
   nest()
+
 bbox_id <- bbox_df %>%
   dplyr::select(xmin,xmax,ymin,ymax)
 
@@ -239,6 +245,8 @@ for (i in 1:1121) {
 
 test <- map(y5, ~ clarkevans.test2(.x, correction="cdf"))
 
+# extract from the output large list the nni values
+
 extracted_values.nni <- list()
 for (i in 1:length(test)) {
   extracted_values.nni[[i]] <- test[[i]][["statistic"]][["R"]]
@@ -246,6 +254,7 @@ for (i in 1:length(test)) {
 combined_values.nni <- unlist(extracted_values.nni)
 
 nni <- combined_values.nni
+# extract from the output large list the nni ses values
 
 extracted_values.nniSES <- list()
 for (i in 1:length(test)) {
